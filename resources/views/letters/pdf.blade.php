@@ -43,14 +43,6 @@
         <p class="reference">{{ $letter->ref_no }}</p>
         <p><strong>Date:</strong> {{ $letter->date }}</p>
     </div>
-
-    {{-- @if(!empty($qr_code_path))
-    <div style="text-align:center; margin-bottom: 10px;">
-        <img src="{{ public_path('storage/' . $qr_code) }}" alt="QR Code" width="120">
-        <div>Reference No: {{ $letter->ref_no }}</div>
-    </div>
-@endif --}}
-
     <div class="letter-info">
         <p><strong>To: {{ $letter->to }}</strong><br>
         {{ $letter->recipient_name }}<br>
@@ -73,9 +65,13 @@
         {!! nl2br(e($letter->approved_position)) !!}
     </div>
    <div class="footer">  
-    @if(!empty($letter->ref_no))
+    {{-- @if(!empty($letter->ref_no))
     <img src="{{ public_path('storage/qr-codes/' . $letter->ref_no . '.png') }}" alt="QR Code" width="120">
-    @endif</div>
+    @endif --}}
+    @if(!empty($qrCodeBase64))
+    <img src="{{ $qrCodeBase64 }}" alt="QR Code" width="120">
+    @endif
+</div>
 
 </body>
 </html>

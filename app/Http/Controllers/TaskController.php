@@ -79,14 +79,8 @@ class TaskController extends Controller
 
         $task = Task::create($validated);
         
-            $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
-            $pdfUrl = asset('storage/pdfs/' . $task->ref_no . '.pdf');
-
-            Storage::disk('public')->put($qrCodePath, QrCode::format('png')->size(200)->generate($pdfUrl));
-            $task->update(['qr_code' => $qrCodePath]);
-
+        $this->generateQRCode($task);
         // Generate PDF
-        // $this->generateQRCode($task);
         $this->generatePDF($task);
     
 
@@ -120,19 +114,43 @@ class TaskController extends Controller
         $task->delete();
         return redirect()->route('tasks.index')->with('success', 'Letter deleted successfully!');
     }
+    private function generateQRCode(Task $task)
+{
+    $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
+    $pdfUrl = asset('storage/pdfs/' . $task->ref_no . '.pdf');
 
+    // Ensure directory exists
+    Storage::disk('public')->makeDirectory('qr-codes');
 
-      public function generatePDF(Task $task)
-    {
-        $pdf = PDF::loadView('letters.pdf', ['letter' => $task]);
-        $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
+    // Generate and save QR code
+    Storage::disk('public')->put($qrCodePath, QrCode::format('png')->size(200)->generate($pdfUrl));
+    $task->update(['qr_code' => $qrCodePath]);
 
-        Storage::disk('public')->put($pdfPath, $pdf->output());
+    return $qrCodePath;
+}
 
-        $task->update(['pdf_path' => $pdfPath]);
+public function generatePDF(Task $task)
+{
+    // Ensure QR code exists before generating PDF
+    $this->generateQRCode($task);
 
-        return $pdf;
-    }
+    // Optionally, get QR code as base64 for the PDF view
+    $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
+    $qrCodeContent = Storage::disk('public')->get($qrCodePath);
+    $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
+
+    $pdf = PDF::loadView('letters.pdf', [
+        'letter' => $task,
+        'qrCodeBase64' => $qrCodeBase64
+    ]);
+    $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
+
+    Storage::disk('public')->put($pdfPath, $pdf->output());
+
+    $task->update(['pdf_path' => $pdfPath]);
+
+    return $pdf;
+}
 
 
 public function printPDF(Task $task)
@@ -166,86 +184,6 @@ public function printDialog(Task $task)
     return view('print-pdf', compact('pdfUrl'));
 }
 
-
-// private function generateQRCode(Task $task)
-// {
-//     logger()->info('Generating QR code for task:', ['id' => $task->id, 'ref_no' => $task->ref_no]);
-
-//     $qrCodeData = route('tasks.index', $task->id);
-//     $qrCodePath = 'qr-codes/' . $task->ref_no . '.svg';
-
-//     try {
-//         $renderer = new ImageRenderer(
-//             new RendererStyle(200),
-//             new SvgImageBackEnd()
-//         );
-
-//         $writer = new Writer($renderer);
-//         $qrImage = $writer->writeString($qrCodeData);
-
-//         Storage::disk('public')->put($qrCodePath, $qrImage);
-
-//         $task->update(['qr_code_path' => 'public/' . $qrCodePath]);
-
-//         logger()->info('QR code generated and saved.', ['path' => $qrCodePath]);
-//     } catch (\Exception $e) {
-//         logger()->error('QR code generation failed.', ['message' => $e->getMessage()]);
-//     }
-// }
-
-    // private function generateQRCode(Task $task)
-    // {
-    //     $qrCodeData = route('tasks.index', $task->id);
-    //     $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
-        
-    //     // Ensure directory exists
-    //     Storage::makeDirectory('public/qr-codes');
-        
-    //     QrCode::format('png')
-    //         ->size(200)
-    //         ->generate($qrCodeData, storage_path('app/public/' . $qrCodePath));
-        
-    //     $letter->update(['qr_code' => 'public/' . $qrCodePath]);
-    
-    // }
-
-    // private function generateQRCode(Task $task)
-    // {
-    //     $qrCodeData = route('tasks.index', $task->id);
-    //     $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
-        
-    //     QrCode::format('png')
-    //         ->size(200)
-    //         ->generate($qrCodeData, storage_path('app/public/' . $qrCodePath));
-        
-    //     $task->update(['qr_code_path' => 'public/' . $qrCodePath]);
-    // }
-
-
-
-    // public function generatePDF(Task $task)
-    // {
-    //     $pdf = PDF::loadView('letters.pdf', ['letter' => $task]);
-    //     $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
-
-    //     Storage::disk('public')->put($pdfPath, $pdf->output());
-
-    //     $task->update(['pdf_path' => $pdfPath]);
-
-    //     return $pdf;
-    // }
-
-    // public function downloadPDF(Task $task)
-    // {
-    //     $pdf = $this->generatePDF($task);
-    //     return $pdf->download($task->ref_no . '.pdf');
-    // }
-
-    // public function printPDF(Task $task)
-    // {
-    //     $pdf = $this->generatePDF($task);
-    //     return $pdf->stream($task->ref_no . '.pdf');
-    // }
     public function preview(Task $task)
     {
         // Ensure QR code exists
