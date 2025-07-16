@@ -17,7 +17,7 @@ use BaconQrCode\Renderer\Image\Png;
 use BaconQrCode\Writer;
 
 class TaskController extends Controller
-{
+{ 
    
     public function index()
     {
