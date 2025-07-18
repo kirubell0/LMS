@@ -155,14 +155,12 @@ export default function Dashboard({ stats = {
                         </div>                        
                     </CardContent>                   
              </Card>
-           
-                          
         </div> 
           <div className='grid gap-3 md:grid-cols-3'> 
-            <Appchart />
+             <Appchart />
              <ChartPie />
              <ChartBarLabel />  
-            </div>          
+        </div>          
     </div>        
     </AppLayout>);
 }
