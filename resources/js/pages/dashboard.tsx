@@ -149,7 +149,7 @@ export default function Dashboard({ stats = {
                                         <p className="text-sm font-medium">Welcome to Letters Managements Systems</p>                                       
                                          <p className="text-xs text-muted-foreground">
                                             Get started by creating your first Letters                                        
-                                             </p>
+                                        </p>
                                     </div>                                
                             </div>                           
                         </div>                        
