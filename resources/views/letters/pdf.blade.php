@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="stylesheet" href="{{ asset('build/assets/app.css') }}">
     <meta charset="utf-8">
     <title>Letter - {{ $letter->reference_number }}</title>
     <style>
