@@ -121,7 +121,6 @@ class TaskController extends Controller
     // Generate QR code using SimpleSoftwareIO without backend specification
     $qrCodeContent = QrCode::format('png')->size(200)->generate($pdfUrl);
 
-    // Save QR code
     Storage::disk('public')->put($qrCodePath, $qrCodeContent);
     $task->update(['qr_code' => $qrCodePath]);
 
