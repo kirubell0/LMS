@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Writer;
 
 
 class TaskController extends Controller
@@ -115,7 +119,6 @@ public function generateQRCode(Task $task)
     try {
         // Sanitize filename to avoid issues with special characters
         $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
-        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.png';
         $pdfUrl = asset('storage/pdfs/' . $sanitizedRefNo . '.pdf');
 
         // Ensure directory exists
@@ -123,13 +126,15 @@ public function generateQRCode(Task $task)
             Storage::disk('public')->makeDirectory('qr-codes');
         }
 
-        // Generate QR code using GD backend (no ImageMagick required)
-        // The simple-qrcode package uses bacon/bacon-qr-code which works with GD
-        $qrCodeContent = QrCode::format('png')
-            ->size(200)
-            ->margin(2)
-            ->errorCorrection('M') // Medium error correction
-            ->generate($pdfUrl);
+        // Use SVG format (no ImageMagick or GD required - pure PHP)
+        $renderer = new ImageRenderer(
+            new RendererStyle(200, 2),
+            new SvgImageBackEnd()
+        );
+        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.svg';
+        
+        $writer = new Writer($renderer);
+        $qrCodeContent = $writer->writeString($pdfUrl);
 
         // Store the QR code
         Storage::disk('public')->put($qrCodePath, $qrCodeContent);
@@ -161,9 +166,9 @@ public function generatePDF(Task $task)
         $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
         
         // Get QR code as base64 for the PDF view
-        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.png';
+        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.svg';
         $qrCodeContent = Storage::disk('public')->get($qrCodePath);
-        $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
+        $qrCodeBase64 = 'data:image/svg+xml;base64,' . base64_encode($qrCodeContent);
 
         $pdf = PDF::loadView('letters.pdf', [
             'letter' => $task,
