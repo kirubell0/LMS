@@ -118,7 +118,7 @@ public function generateQRCode(Task $task)
     // Ensure directory exists
     Storage::disk('public')->makeDirectory('qr-codes');
     // Generate QR code using SimpleSoftwareIO with Imagick backend
-    $qrCodeContent = QrCode::format('png')->size(200)->encoding('UTF-8')->errorCorrection('H')->margin(1)->backgroundColor(255, 255, 255)->color(0, 0, 0)->style('square')->eye('square')->format('png')->backend('imagick')->generate($pdfUrl);
+$qrCodeContent = QrCode::format('png')->size(200)->encoding('UTF-8')->errorCorrection('H')->margin(1)->backgroundColor(255, 255, 255)->color(0, 0, 0)->style('square')->eye('square')->generate($pdfUrl);
     Storage::disk('public')->put($qrCodePath, $qrCodeContent);
     $task->update(['qr_code' => $qrCodePath]);
 
