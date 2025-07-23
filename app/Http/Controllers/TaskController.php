@@ -105,22 +105,20 @@ class TaskController extends Controller
     }
 
 
-    public function destroy(Task $task)
+public function destroy(Task $task)
     {
         $task->delete();
         return redirect()->route('tasks.index')->with('success', 'Letter deleted successfully!');
     }
-    private function generateQRCode(Task $task)
+public function generateQRCode(Task $task)
     {
     $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
     $pdfUrl = asset('storage/pdfs/' . $task->ref_no . '.pdf');
 
     // Ensure directory exists
     Storage::disk('public')->makeDirectory('qr-codes');
-
-    // Generate QR code using SimpleSoftwareIO without backend specification
-    $qrCodeContent = QrCode::format('png')->size(200)->generate($pdfUrl);
-
+    // Generate QR code using SimpleSoftwareIO with Imagick backend
+    $qrCodeContent = QrCode::format('png')->size(200)->encoding('UTF-8')->errorCorrection('H')->margin(1)->backgroundColor(255, 255, 255)->color(0, 0, 0)->style('square')->eye('square')->format('png')->backend('imagick')->generate($pdfUrl);
     Storage::disk('public')->put($qrCodePath, $qrCodeContent);
     $task->update(['qr_code' => $qrCodePath]);
 
