@@ -111,7 +111,7 @@ class TaskController extends Controller
         return redirect()->route('tasks.index')->with('success', 'Letter deleted successfully!');
     }
     private function generateQRCode(Task $task)
-{
+    {
     $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
     $pdfUrl = asset('storage/pdfs/' . $task->ref_no . '.pdf');
 
