@@ -10,11 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\RendererStyle\RendererStyle;
-use BaconQrCode\Renderer\Image\SvgImageBackEnd;
-use BaconQrCode\Renderer\Image\Png;
-use BaconQrCode\Writer;
+
 
 class TaskController extends Controller
 { 
@@ -122,13 +118,8 @@ class TaskController extends Controller
     // Ensure directory exists
     Storage::disk('public')->makeDirectory('qr-codes');
 
-    // Generate QR code using BaconQrCode directly
-    $renderer = new ImageRenderer(
-        new RendererStyle(200),
-        new Png()
-    );
-    $writer = new Writer($renderer);
-    $qrCodeContent = $writer->writeString($pdfUrl);
+    // Generate QR code using SimpleSoftwareIO without backend specification
+    $qrCodeContent = QrCode::format('png')->size(200)->generate($pdfUrl);
 
     // Save QR code
     Storage::disk('public')->put($qrCodePath, $qrCodeContent);
