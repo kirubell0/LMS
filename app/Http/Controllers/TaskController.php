@@ -111,43 +111,85 @@ public function destroy(Task $task)
         return redirect()->route('tasks.index')->with('success', 'Letter deleted successfully!');
     }
 public function generateQRCode(Task $task)
-    {
-    $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
-    $pdfUrl = asset('storage/pdfs/' . $task->ref_no . '.pdf');
+{
+    try {
+        // Sanitize filename to avoid issues with special characters
+        $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
+        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.png';
+        $pdfUrl = asset('storage/pdfs/' . $sanitizedRefNo . '.pdf');
 
-    // Ensure directory exists
-    Storage::disk('public')->makeDirectory('qr-codes');
+        // Ensure directory exists
+        if (!Storage::disk('public')->exists('qr-codes')) {
+            Storage::disk('public')->makeDirectory('qr-codes');
+        }
 
-    // Generate QR code using SimpleSoftwareIO without backend specification
-    $qrCodeContent = QrCode::format('png')->size(200)->generate($pdfUrl);
+        // Generate QR code using GD backend (no ImageMagick required)
+        // The simple-qrcode package uses bacon/bacon-qr-code which works with GD
+        $qrCodeContent = QrCode::format('png')
+            ->size(200)
+            ->margin(2)
+            ->errorCorrection('M') // Medium error correction
+            ->generate($pdfUrl);
 
-    Storage::disk('public')->put($qrCodePath, $qrCodeContent);
-    $task->update(['qr_code' => $qrCodePath]);
+        // Store the QR code
+        Storage::disk('public')->put($qrCodePath, $qrCodeContent);
+        
+        // Update task with QR code path
+        $task->update(['qr_code' => $qrCodePath]);
 
-    return $qrCodePath;
+        return $qrCodePath;
+        
+    } catch (\Exception $e) {
+        // Log the error for debugging
+        \Log::error('QR Code generation failed: ' . $e->getMessage(), [
+            'task_id' => $task->id,
+            'ref_no' => $task->ref_no
+        ]);
+        
+        // Return null or throw exception based on your preference
+        throw new \Exception('Failed to generate QR code: ' . $e->getMessage());
+    }
 }
 
 public function generatePDF(Task $task)
 {
-    // Ensure QR code exists before generating PDF
-    $this->generateQRCode($task);
+    try {
+        // Ensure QR code exists before generating PDF
+        $this->generateQRCode($task);
 
-    // Optionally, get QR code as base64 for the PDF view
-    $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
-    $qrCodeContent = Storage::disk('public')->get($qrCodePath);
-    $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
+        // Sanitize filename consistently
+        $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
+        
+        // Get QR code as base64 for the PDF view
+        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.png';
+        $qrCodeContent = Storage::disk('public')->get($qrCodePath);
+        $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
 
-    $pdf = PDF::loadView('letters.pdf', [
-        'letter' => $task,
-        'qrCodeBase64' => $qrCodeBase64
-    ]);
-    $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
+        $pdf = PDF::loadView('letters.pdf', [
+            'letter' => $task,
+            'qrCodeBase64' => $qrCodeBase64
+        ]);
+        
+        $pdfPath = 'pdfs/' . $sanitizedRefNo . '.pdf';
 
-    Storage::disk('public')->put($pdfPath, $pdf->output());
+        // Ensure pdfs directory exists
+        if (!Storage::disk('public')->exists('pdfs')) {
+            Storage::disk('public')->makeDirectory('pdfs');
+        }
 
-    $task->update(['pdf_path' => $pdfPath]);
+        Storage::disk('public')->put($pdfPath, $pdf->output());
+        $task->update(['pdf_path' => $pdfPath]);
 
-    return $pdf;
+        return $pdf;
+        
+    } catch (\Exception $e) {
+        \Log::error('PDF generation failed: ' . $e->getMessage(), [
+            'task_id' => $task->id,
+            'ref_no' => $task->ref_no
+        ]);
+        
+        throw new \Exception('Failed to generate PDF: ' . $e->getMessage());
+    }
 }
 
 
