@@ -122,8 +122,16 @@ class TaskController extends Controller
     // Ensure directory exists
     Storage::disk('public')->makeDirectory('qr-codes');
 
-    // Generate and save QR code
-    Storage::disk('public')->put($qrCodePath, QrCode::format('png')->size(200)->generate($pdfUrl));
+    // Generate QR code using BaconQrCode directly
+    $renderer = new ImageRenderer(
+        new RendererStyle(200),
+        new Png()
+    );
+    $writer = new Writer($renderer);
+    $qrCodeContent = $writer->writeString($pdfUrl);
+
+    // Save QR code
+    Storage::disk('public')->put($qrCodePath, $qrCodeContent);
     $task->update(['qr_code' => $qrCodePath]);
 
     return $qrCodePath;
