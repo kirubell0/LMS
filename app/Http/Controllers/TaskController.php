@@ -123,7 +123,7 @@ class TaskController extends Controller
     Storage::disk('public')->makeDirectory('qr-codes');
 
     // Generate and save QR code
-    Storage::disk('public')->put($qrCodePath, QrCode::format('png')->size(200)->generate($pdfUrl));
+    Storage::disk('public')->put($qrCodePath, QrCode::format('png')->size(200)->merge('', 0, true, 'gd')->generate($pdfUrl));
     $task->update(['qr_code' => $qrCodePath]);
 
     return $qrCodePath;
