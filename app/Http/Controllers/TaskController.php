@@ -111,37 +111,144 @@ public function destroy(Task $task)
     }
 public function generateQRCode(Task $task)
 {
-    // Generate QR code
-    $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
-    $pdfUrl = url('/tasks/' . $task->id . '/print');
-        // Ensure directory exists
-        if (!Storage::disk('public')->exists('qr-codes')) {
-            Storage::disk('public')->makeDirectory('qr-codes');
+    try {
+        // Validate task data
+        if (!$task || !$task->id || !$task->ref_no) {
+            throw new \InvalidArgumentException('Invalid task data provided');
         }
 
-    // Generate QR code using GD backend (no ImageMagick required)
-    try {
-        // Force use of GD backend instead of ImageMagick
-        $qrCode = QrCode::format('png')
-                ->size(200)
-                ->backgroundColor(255, 255, 255)
-                ->color(0, 0, 0)
-                ->generate($pdfUrl);
-    } catch (\Exception $e) {
-        // Fallback to SVG format if PNG fails
-        $qrCode = QrCode::format('svg')
-                ->size(200)
-                ->generate($pdfUrl);
-        $qrCodePath = 'qr-codes/' . $task->ref_no . '.svg';
-    }
+        // Sanitize reference number for file naming
+        $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
+        if (empty($sanitizedRefNo)) {
+            throw new \InvalidArgumentException('Invalid reference number for file naming');
+        }
 
-        // Store the QR code
-    Storage::disk('public')->put($qrCodePath, $qrCode);
-        
+        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.png';
+        $pdfUrl = url('/tasks/' . $task->id . '/print');
+
+        // Validate URL generation
+        if (empty($pdfUrl) || !filter_var($pdfUrl, FILTER_VALIDATE_URL)) {
+            throw new \RuntimeException('Failed to generate valid PDF URL');
+        }
+
+        // Ensure directory exists with proper error handling
+        try {
+            if (!Storage::disk('public')->exists('qr-codes')) {
+                if (!Storage::disk('public')->makeDirectory('qr-codes')) {
+                    throw new \RuntimeException('Failed to create qr-codes directory');
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('QR Code directory creation failed: ' . $e->getMessage());
+            throw new \RuntimeException('Unable to create storage directory: ' . $e->getMessage());
+        }
+
+        // Generate QR code with multiple fallback options
+        $qrCode = null;
+        $finalPath = $qrCodePath;
+
+        // First attempt: PNG format
+        try {
+            $qrCode = QrCode::format('png')
+                    ->size(200)
+                    ->backgroundColor(255, 255, 255)
+                    ->color(0, 0, 0)
+                    ->errorCorrection('M')
+                    ->generate($pdfUrl);
+            
+            if (empty($qrCode)) {
+                throw new \RuntimeException('QR code generation returned empty result');
+            }
+        } catch (\Exception $e) {
+            \Log::warning('PNG QR code generation failed: ' . $e->getMessage());
+            
+            // Second attempt: SVG format
+            try {
+                $qrCode = QrCode::format('svg')
+                        ->size(200)
+                        ->errorCorrection('M')
+                        ->generate($pdfUrl);
+                $finalPath = 'qr-codes/' . $sanitizedRefNo . '.svg';
+                
+                if (empty($qrCode)) {
+                    throw new \RuntimeException('SVG QR code generation returned empty result');
+                }
+            } catch (\Exception $svgException) {
+                \Log::error('SVG QR code generation also failed: ' . $svgException->getMessage());
+                
+                // Third attempt: Basic format without specific backend
+                try {
+                    $qrCode = QrCode::size(200)->generate($pdfUrl);
+                    $finalPath = 'qr-codes/' . $sanitizedRefNo . '.txt';
+                    
+                    if (empty($qrCode)) {
+                        throw new \RuntimeException('Basic QR code generation returned empty result');
+                    }
+                } catch (\Exception $basicException) {
+                    \Log::error('All QR code generation methods failed', [
+                        'task_id' => $task->id,
+                        'ref_no' => $task->ref_no,
+                        'png_error' => $e->getMessage(),
+                        'svg_error' => $svgException->getMessage(),
+                        'basic_error' => $basicException->getMessage()
+                    ]);
+                    throw new \RuntimeException('Failed to generate QR code in any format: ' . $basicException->getMessage());
+                }
+            }
+        }
+
+        // Store the QR code with error handling
+        try {
+            $stored = Storage::disk('public')->put($finalPath, $qrCode);
+            if (!$stored) {
+                throw new \RuntimeException('Failed to store QR code file');
+            }
+        } catch (\Exception $e) {
+            \Log::error('QR Code storage failed: ' . $e->getMessage());
+            throw new \RuntimeException('Unable to save QR code: ' . $e->getMessage());
+        }
+
+        // Verify the file was actually created
+        if (!Storage::disk('public')->exists($finalPath)) {
+            throw new \RuntimeException('QR code file was not created successfully');
+        }
+
         // Update task with QR code path
-        $task->update(['qr_code_path' => $qrCodePath]);
+        try {
+            $updated = $task->update(['qr_code_path' => $finalPath]);
+            if (!$updated) {
+                \Log::warning('Failed to update task with QR code path', [
+                    'task_id' => $task->id,
+                    'qr_path' => $finalPath
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to update task with QR code path: ' . $e->getMessage());
+            // Don't throw here as the QR code was generated successfully
+        }
 
-        return $qrCodePath;
+        \Log::info('QR code generated successfully', [
+            'task_id' => $task->id,
+            'ref_no' => $task->ref_no,
+            'path' => $finalPath
+        ]);
+
+        return $finalPath;
+
+    } catch (\InvalidArgumentException $e) {
+        \Log::error('QR Code Generation - Invalid Argument: ' . $e->getMessage());
+        throw $e;
+    } catch (\RuntimeException $e) {
+        \Log::error('QR Code Generation - Runtime Error: ' . $e->getMessage());
+        throw $e;
+    } catch (\Exception $e) {
+        \Log::error('QR Code Generation - Unexpected Error: ' . $e->getMessage(), [
+            'task_id' => $task->id ?? 'unknown',
+            'exception' => get_class($e),
+            'trace' => $e->getTraceAsString()
+        ]);
+        throw new \RuntimeException('Unexpected error during QR code generation: ' . $e->getMessage());
+    }
 }
 public function generatePDF(Task $task)
 {
