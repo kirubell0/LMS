@@ -79,11 +79,11 @@ RUN mkdir -p /app/storage/fonts \
     && mkdir -p /run/nginx \
     && mkdir -p /var/log/supervisor
 # Install dependencies
-RUN apt-get update && apt-get install -y \
-    imagemagick \
-    libmagickwand-dev \
-    && pecl install imagick \
-    && docker-php-ext-enable imagick
+# RUN apt-get update && apt-get install -y \
+#     imagemagick \
+#     libmagickwand-dev \
+#     && pecl install imagick \
+#     && docker-php-ext-enable imagick
 # Configure PHP-FPM
 RUN echo '[www]' > /usr/local/etc/php-fpm.d/www.conf \
     && echo 'listen = 127.0.0.1:9000' >> /usr/local/etc/php-fpm.d/www.conf \
