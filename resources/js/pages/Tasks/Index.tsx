@@ -153,7 +153,7 @@ export default function TasksIndex({ tasks, lists, filters, flash }: Props) {
     };
 
   const handlePrint = (taskId: number) => {
-    window.open(route('tasks.printPDF', taskId));
+    window.open(route('tasks.printDialog', taskId));
 };
 
 const printFrameRef = useRef<HTMLIFrameElement>(null);
@@ -430,7 +430,7 @@ const handlePrintInPlace = (taskId: number) => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() =>  handlePrintInPlace(task.id)}
+                                                    onClick={() =>handlePrintInPlace(task.id)}
                                                     className="hover:bg-primary/10 hover:text-primary"
                                                 >
                                                     <Eye className="h-4 w-4" />
