@@ -345,28 +345,13 @@ public function printDialog(Task $task)
             $task->refresh();
         }
 
-        // Verify PDF was generated successfully
-        if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
-            throw new \Exception('PDF generation failed');
-        }
-
         // Use asset() to get a public URL for the PDF
         $pdfUrl = asset('storage/' . $task->pdf_path);
-        
-        // Pass additional data to the view
-        $data = [
-            'pdfUrl' => $pdfUrl,
-            'task' => $task,
-            'fileName' => basename($task->pdf_path)
-        ];
 
-        return view('print-pdf', $data);
+        return view('print-pdf', compact('pdfUrl'));
     } catch (\Exception $e) {
-        \Log::error('PDF Dialog Error: ' . $e->getMessage(), [
-            'task_id' => $task->id,
-            'pdf_path' => $task->pdf_path ?? 'null'
-        ]);
-        return redirect()->back()->with('error', 'Failed to generate PDF for printing: ' . $e->getMessage());
+        \Log::error('PDF Dialog Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'Failed to generate PDF for printing');
     }
 }
 
