@@ -183,7 +183,7 @@ public function generatePDF(Task $task)
 public function printPDF(Task $task)
 {
     try {
-        // Generate PDF if it doesn't exist or is corrupted
+        // Generate PDF if it doesn't exist
         if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
             $this->generatePDF($task);
             $task->refresh();
