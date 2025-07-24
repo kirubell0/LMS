@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="{{ asset('build/assets/app.css') }}">
     <meta charset="utf-8">
-    <title>Letter - {{ $letter->reference_number }}</title>
+    <title>Letter - {{ $letter->ref_no }}</title>
     <style>
         body {
             padding-top: 100px;
@@ -45,12 +44,12 @@
         <p><strong>Date:</strong> {{ $letter->date }}</p>
     </div>
     <div class="letter-info">
-        <p><strong>To: {{ $letter->to }}</strong><br>
-        {{ $letter->recipient_name }}<br>
-        {{ $letter->recipient_address }}</p>
+        <p><strong>To: {{ $letter->to }}</strong></p>
         
         <p><strong>Subject:</strong> {{ $letter->subject }}</p>
-        <p><strong>         </strong> {{ $letter->body }}</p>
+        <div class="content">
+            {!! nl2br(e($letter->body)) !!}
+        </div>
     </div>
 
     

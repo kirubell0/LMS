@@ -7,13 +7,9 @@ use App\Models\TaskList;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use \SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\RendererStyle\RendererStyle;
-use BaconQrCode\Renderer\Image\SvgImageBackEnd;
-use BaconQrCode\Writer;
 
 
 class TaskController extends Controller
@@ -79,7 +75,6 @@ class TaskController extends Controller
 
         $task = Task::create($validated);
         
-        $this->generateQRCode($task);
         // Generate PDF
         $this->generatePDF($task);
     
@@ -116,83 +111,70 @@ public function destroy(Task $task)
     }
 public function generateQRCode(Task $task)
 {
-    try {
-        // Sanitize filename to avoid issues with special characters
-        $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
-        $pdfUrl = asset('storage/pdfs/' . $sanitizedRefNo . '.pdf');
-
+    // Generate QR code
+    $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
+    $pdfUrl = url('/tasks/' . $task->id . '/print');
         // Ensure directory exists
         if (!Storage::disk('public')->exists('qr-codes')) {
             Storage::disk('public')->makeDirectory('qr-codes');
         }
 
-        // Use SVG format (no ImageMagick or GD required - pure PHP)
-        $renderer = new ImageRenderer(
-            new RendererStyle(200, 2),
-            new SvgImageBackEnd()
-        );
-        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.svg';
-        
-        $writer = new Writer($renderer);
-        $qrCodeContent = $writer->writeString($pdfUrl);
+    // Generate QR code
+    $qrCode = QrCode::format('png')
+            ->size(200)
+            ->generate($pdfUrl);
 
         // Store the QR code
-        Storage::disk('public')->put($qrCodePath, $qrCodeContent);
+    Storage::disk('public')->put($qrCodePath, $qrCode);
         
         // Update task with QR code path
-        $task->update(['qr_code' => $qrCodePath]);
+        $task->update(['qr_code_path' => $qrCodePath]);
 
         return $qrCodePath;
-        
-    } catch (\Exception $e) {
-        // Log the error for debugging
-        \Log::error('QR Code generation failed: ' . $e->getMessage(), [
-            'task_id' => $task->id,
-            'ref_no' => $task->ref_no
-        ]);
-        
-        // Return null or throw exception based on your preference
-        throw new \Exception('Failed to generate QR code: ' . $e->getMessage());
-    }
 }
-
 public function generatePDF(Task $task)
 {
     try {
         // Ensure QR code exists before generating PDF
         $this->generateQRCode($task);
 
-        // Sanitize filename consistently
-        $sanitizedRefNo = preg_replace('/[^a-zA-Z0-9_-]/', '_', $task->ref_no);
-        
+        // Ensure PDFs directory exists
+        if (!Storage::disk('public')->exists('pdfs')) {
+            Storage::disk('public')->makeDirectory('pdfs');
+        }
+
         // Get QR code as base64 for the PDF view
-        $qrCodePath = 'qr-codes/' . $sanitizedRefNo . '.svg';
-        $qrCodeContent = Storage::disk('public')->get($qrCodePath);
-        $qrCodeBase64 = 'data:image/svg+xml;base64,' . base64_encode($qrCodeContent);
+        $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
+        $qrCodeBase64 = null;
+        
+        if (Storage::disk('public')->exists($qrCodePath)) {
+            $qrCodeContent = Storage::disk('public')->get($qrCodePath);
+            $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
+        }
 
         $pdf = PDF::loadView('letters.pdf', [
             'letter' => $task,
             'qrCodeBase64' => $qrCodeBase64
         ]);
         
-        $pdfPath = 'pdfs/' . $sanitizedRefNo . '.pdf';
-
-        // Ensure pdfs directory exists
-        if (!Storage::disk('public')->exists('pdfs')) {
-            Storage::disk('public')->makeDirectory('pdfs');
-        }
-
-        Storage::disk('public')->put($pdfPath, $pdf->output());
+        // Set PDF options for better compatibility
+        $pdf->setPaper('A4', 'portrait');
+        $pdf->setOptions([
+            'dpi' => 150,
+            'defaultFont' => 'sans-serif',
+            'isRemoteEnabled' => false,
+            'isHtml5ParserEnabled' => true,
+        ]);
+        
+        $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
+        $pdfContent = $pdf->output();
+        
+        Storage::disk('public')->put($pdfPath, $pdfContent);
         $task->update(['pdf_path' => $pdfPath]);
 
         return $pdf;
-        
     } catch (\Exception $e) {
-        \Log::error('PDF generation failed: ' . $e->getMessage(), [
-            'task_id' => $task->id,
-            'ref_no' => $task->ref_no
-        ]);
-        
+        \Log::error('PDF Generation Error: ' . $e->getMessage());
         throw new \Exception('Failed to generate PDF: ' . $e->getMessage());
     }
 }
@@ -200,17 +182,34 @@ public function generatePDF(Task $task)
 
 public function printPDF(Task $task)
 {
-    if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
+    try {
+        // Generate PDF if it doesn't exist or is corrupted
+        if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
+            $this->generatePDF($task);
+            $task->refresh();
+        }
+        
+        $pdfPath = storage_path('app/public/' . $task->pdf_path);
+        
+        // Check if file exists and is readable
+        if (!file_exists($pdfPath) || !is_readable($pdfPath)) {
+            // Regenerate PDF if file is missing or corrupted
+            $this->generatePDF($task);
+            $task->refresh();
+            $pdfPath = storage_path('app/public/' . $task->pdf_path);
+        }
 
-        $this->generatePDF($task);
-        $task->refresh();
+        return response()->file($pdfPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="letter-' . $task->ref_no . '.pdf"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0'
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('PDF Print Error: ' . $e->getMessage());
+        return response()->json(['error' => 'Failed to generate PDF'], 500);
     }
-    $pdfPath = storage_path('app/public/' . $task->pdf_path);
-
-    return response()->file($pdfPath, [
-        'Content-Type' => 'application/pdf',
-        'Content-Disposition' => 'inline; filename="letter-' . $task->ref_no . '.pdf"',
-    ]);
 }
 
 
@@ -218,15 +217,46 @@ public function printPDF(Task $task)
 
 public function printDialog(Task $task)
 {
-    // Ensure the PDF exists
-    if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
-        $task->refresh();
+    try {
+        // Ensure the PDF exists
+        if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
+            $this->generatePDF($task);
+            $task->refresh();
+        }
+
+        // Use asset() to get a public URL for the PDF
+        $pdfUrl = asset('storage/' . $task->pdf_path);
+
+        return view('print-pdf', compact('pdfUrl'));
+    } catch (\Exception $e) {
+        \Log::error('PDF Dialog Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'Failed to generate PDF for printing');
     }
+}
 
-    // Use asset() to get a public URL for the PDF
-    $pdfUrl = asset('storage/' . $task->pdf_path);
+public function downloadPDF(Task $task)
+{
+    try {
+        // Generate PDF if it doesn't exist
+        if (!$task->pdf_path || !Storage::disk('public')->exists($task->pdf_path)) {
+            $this->generatePDF($task);
+            $task->refresh();
+        }
+        
+        $pdfPath = storage_path('app/public/' . $task->pdf_path);
+        
+        // Check if file exists
+        if (!file_exists($pdfPath)) {
+            throw new \Exception('PDF file not found');
+        }
 
-    return view('print-pdf', compact('pdfUrl'));
+        return response()->download($pdfPath, 'letter-' . $task->ref_no . '.pdf', [
+            'Content-Type' => 'application/pdf',
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('PDF Download Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'Failed to download PDF');
+    }
 }
 
     public function preview(Task $task)
