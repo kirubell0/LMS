@@ -119,10 +119,21 @@ public function generateQRCode(Task $task)
             Storage::disk('public')->makeDirectory('qr-codes');
         }
 
-    // Generate QR code
-    $qrCode = QrCode::format('png')
-            ->size(200)
-            ->generate($pdfUrl);
+    // Generate QR code using GD backend (no ImageMagick required)
+    try {
+        // Force use of GD backend instead of ImageMagick
+        $qrCode = QrCode::format('png')
+                ->size(200)
+                ->backgroundColor(255, 255, 255)
+                ->color(0, 0, 0)
+                ->generate($pdfUrl);
+    } catch (\Exception $e) {
+        // Fallback to SVG format if PNG fails
+        $qrCode = QrCode::format('svg')
+                ->size(200)
+                ->generate($pdfUrl);
+        $qrCodePath = 'qr-codes/' . $task->ref_no . '.svg';
+    }
 
         // Store the QR code
     Storage::disk('public')->put($qrCodePath, $qrCode);
@@ -157,13 +168,16 @@ public function generatePDF(Task $task)
             'qrCodeBase64' => $qrCodeBase64
         ]);
         
-        // Set PDF options for better compatibility
+        // Set PDF options for better compatibility without ImageMagick dependency
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
             'dpi' => 150,
-            'defaultFont' => 'sans-serif',
+            'defaultFont' => 'DejaVu Sans',
             'isRemoteEnabled' => false,
             'isHtml5ParserEnabled' => true,
+            'isPhpEnabled' => false,
+            'fontSubsetting' => false,
+            'debugKeepTemp' => false,
         ]);
         
         $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
