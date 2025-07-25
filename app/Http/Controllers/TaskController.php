@@ -270,12 +270,20 @@ public function generatePDF(Task $task)
             $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
         }
 
+        // Ensure proper UTF-8 encoding for all text fields
+        $taskData = $task->toArray();
+        foreach ($taskData as $key => $value) {
+            if (is_string($value)) {
+                $taskData[$key] = mb_convert_encoding($value, 'UTF-8', 'auto');
+            }
+        }
+        
         $pdf = PDF::loadView('letters.pdf', [
-            'letter' => $task,
+            'letter' => (object) $taskData,
             'qrCodeBase64' => $qrCodeBase64
         ]);
         
-        // Set PDF options for better compatibility without ImageMagick dependency
+        // Set PDF options for better compatibility and language support
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
             'dpi' => 150,
@@ -283,8 +291,12 @@ public function generatePDF(Task $task)
             'isRemoteEnabled' => false,
             'isHtml5ParserEnabled' => true,
             'isPhpEnabled' => false,
-            'fontSubsetting' => false,
+            'fontSubsetting' => true,
             'debugKeepTemp' => false,
+            'enable_font_subsetting' => true,
+            'defaultMediaType' => 'print',
+            'defaultPaperSize' => 'a4',
+            'defaultPaperOrientation' => 'portrait',
         ]);
         
         $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';

@@ -7,9 +7,10 @@
     <style>
         body {
             padding-top: 100px;
-            font-family: Arial, sans-serif;
+            font-family: 'DejaVu Sans', sans-serif;
             margin: 10px;
             line-height: 1.3;
+            font-size: 12pt;
         }
 
         .header {
@@ -25,6 +26,8 @@
         .content {
             margin: 15px 0;
             text-align: justify;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .footer {
@@ -41,6 +44,17 @@
 
         .reference {
             font-weight: bold;
+        }
+
+        /* Better support for RTL languages */
+        .rtl {
+            direction: rtl;
+            text-align: right;
+        }
+
+        /* Ensure proper Unicode rendering */
+        * {
+            unicode-bidi: embed;
         }
     </style>
 </head>
