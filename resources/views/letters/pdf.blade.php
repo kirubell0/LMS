@@ -56,6 +56,10 @@
         * {
             unicode-bidi: embed;
         }
+        .sub{
+            font-style: underline;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -87,9 +91,6 @@
         {!! nl2br(e($letter->approved_position)) !!}
     </div>
     <div class="footer">
-         <!-- @if (!empty($letter->ref_no))
-    <img src="{{ public_path('storage/qr-codes/' . $letter->ref_no . '.png') }}" alt="QR Code" width="120">
-     @endif -->
         @if (!empty($qrCodeBase64))
             <img src="{{ $qrCodeBase64 }}" alt="QR Code" width="120">
         @endif
