@@ -247,7 +247,6 @@
                 <div>{{ $letter->cc }}</div>
             @endif
             @if (!empty($letter->cc_position))
-                <div><strong>CC (Optional):</strong></div>
                 <div>{{ $letter->cc_position }}</div>
             @endif
         </div>

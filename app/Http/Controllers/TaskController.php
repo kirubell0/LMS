@@ -9,7 +9,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use \SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
-use Mpdf\Mpdf;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 
 class TaskController extends Controller
