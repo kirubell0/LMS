@@ -20,8 +20,11 @@ return new class extends Migration
             $table->string('Subject')->nullable();
             $table->text('body')->nullable();
             $table->string('cc')->nullable();
+            $table->string('cc_position')->nullable(); // <-- Add this line
             $table->string('Approved_by')->nullable();
             $table->string('Approved_position')->nullable();
+            $table->string('approved_by_optional')->nullable();
+            $table->string('approved_position_optional')->nullable();
             $table->string('pdf_path')->nullable();
             $table->string('qr_code_path')->nullable();  
             $table->boolean('is_completed')->default(false);

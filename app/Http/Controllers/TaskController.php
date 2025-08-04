@@ -9,7 +9,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use \SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Str;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Mpdf\Mpdf;
 
 
 class TaskController extends Controller
@@ -71,6 +71,9 @@ class TaskController extends Controller
             'is_completed' => 'boolean',
             'cc' => 'required | string',
             'list_id' => 'required|exists:lists,id',
+            'cc_position' => 'nullable|string',
+            'approved_by_optional' => 'nullable|string',
+            'approved_position_optional' => 'nullable|string',
         ]);
 
         $task = Task::create($validated);
@@ -262,19 +265,33 @@ public function generatePDF(Task $task)
         }
 
         // Get QR code as base64 for the PDF view
-        $qrCodePath = 'qr-codes/' . $task->ref_no . '.png';
         $qrCodeBase64 = null;
         
-        if (Storage::disk('public')->exists($qrCodePath)) {
-            $qrCodeContent = Storage::disk('public')->get($qrCodePath);
-            $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
+        // Try different QR code formats in order of preference
+        $qrCodeFormats = [
+            ['path' => 'qr-codes/' . $task->ref_no . '.png', 'mime' => 'image/png'],
+            ['path' => 'qr-codes/' . $task->ref_no . '.svg', 'mime' => 'image/svg+xml'],
+            ['path' => 'qr-codes/' . $task->ref_no . '.txt', 'mime' => 'image/svg+xml']
+        ];
+        
+        foreach ($qrCodeFormats as $format) {
+            if (Storage::disk('public')->exists($format['path'])) {
+                $qrCodeContent = Storage::disk('public')->get($format['path']);
+                $qrCodeBase64 = 'data:' . $format['mime'] . ';base64,' . base64_encode($qrCodeContent);
+                break;
+            }
         }
 
         // Ensure proper UTF-8 encoding for all text fields
         $taskData = $task->toArray();
         foreach ($taskData as $key => $value) {
             if (is_string($value)) {
-                $taskData[$key] = mb_convert_encoding($value, 'UTF-8', 'auto');
+                // Ensure proper UTF-8 encoding and handle Amharic characters
+                $taskData[$key] = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                // Additional encoding check for complex scripts
+                if (!mb_check_encoding($taskData[$key], 'UTF-8')) {
+                    $taskData[$key] = utf8_encode($value);
+                }
             }
         }
         
@@ -297,6 +314,9 @@ public function generatePDF(Task $task)
             'defaultMediaType' => 'print',
             'defaultPaperSize' => 'a4',
             'defaultPaperOrientation' => 'portrait',
+            'isFontSubsettingEnabled' => true,
+            'isUnicode' => true,
+            'enable_unicode' => true,
         ]);
         
         $pdfPath = 'pdfs/' . $task->ref_no . '.pdf';
@@ -401,9 +421,20 @@ public function downloadPDF(Task $task)
 
         // Get QR code as base64 for preview
         $qrCodeBase64 = null;
-        if ($task->qr_code_path && Storage::exists($task->qr_code_path)) {
-            $qrCodeContent = Storage::get($task->qr_code_path);
-            $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrCodeContent);
+        
+        // Try different QR code formats in order of preference
+        $qrCodeFormats = [
+            ['path' => 'qr-codes/' . $task->ref_no . '.png', 'mime' => 'image/png'],
+            ['path' => 'qr-codes/' . $task->ref_no . '.svg', 'mime' => 'image/svg+xml'],
+            ['path' => 'qr-codes/' . $task->ref_no . '.txt', 'mime' => 'image/svg+xml']
+        ];
+        
+        foreach ($qrCodeFormats as $format) {
+            if (Storage::disk('public')->exists($format['path'])) {
+                $qrCodeContent = Storage::disk('public')->get($format['path']);
+                $qrCodeBase64 = 'data:' . $format['mime'] . ';base64,' . base64_encode($qrCodeContent);
+                break;
+            }
         }
 
         return Inertia::render('tasks/show', [

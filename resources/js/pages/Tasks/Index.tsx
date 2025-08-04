@@ -1,15 +1,14 @@
+import LexicalEditor from '@/components/LexicalEditor';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Calendar, CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, List, Pencil, Plus, Search, Trash2, XCircle, Download, Trash,Eye } from 'lucide-react';
-import { useEffect, useState, FormEvent } from 'react';
-import { useRef } from 'react';
+import { Calendar, CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, Download, Eye, List, Plus, Search, XCircle } from 'lucide-react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 // import EditorX  from '@/pages/editor-x'
 interface Task {
     id: number;
@@ -17,16 +16,19 @@ interface Task {
     to: string;
     subject: string | null;
     body: string;
-    cc:string | null;
+    cc: string | null;
+    cc_position: string | null;
     is_completed: boolean;
-    date: string ;
+    date: string;
     list_id: number;
     list: {
         id: number;
         title: string;
     };
-    approved_by: string;
-    approved_position: string;
+    approved_by: string | null;
+    approved_position: string | null;
+    approved_by_optional: string | null;
+    approved_position_optional: string | null;
 }
 
 interface List {
@@ -107,8 +109,11 @@ export default function TasksIndex({ tasks, lists, filters, flash }: Props) {
         subject: '',
         body: '',
         cc: '',
+        cc_position: '',
         approved_by: '',
         approved_position: '',
+        approved_by_optional: '',
+        approved_position_optional: '',
         date: '',
         list_id: '',
         is_completed: false as boolean,
@@ -138,13 +143,16 @@ export default function TasksIndex({ tasks, lists, filters, flash }: Props) {
         setEditingTask(task);
         setData({
             ref_no: task.ref_no ?? '',
-            title: '', // You may want to set this to a relevant value if available
+            title: '',
             to: task.to,
             subject: task.subject ?? '',
             body: task.body ?? '',
             cc: task.cc ?? '',
+            cc_position: task.cc_position ?? '',
             approved_by: task.approved_by ?? '',
             approved_position: task.approved_position ?? '',
+            approved_by_optional: task.approved_by_optional ?? '',
+            approved_position_optional: task.approved_position_optional ?? '',
             date: task.date ?? '',
             list_id: task.list_id.toString(),
             is_completed: task.is_completed,
@@ -152,21 +160,21 @@ export default function TasksIndex({ tasks, lists, filters, flash }: Props) {
         setIsOpen(true);
     };
 
-  const handlePrint = (taskId: number) => {
-    window.open(route('tasks.printDialog', taskId));
-};
+    const handlePrint = (taskId: number) => {
+        window.open(route('tasks.printDialog', taskId));
+    };
 
-const printFrameRef = useRef<HTMLIFrameElement>(null);
+    const printFrameRef = useRef<HTMLIFrameElement>(null);
 
-const handlePrintInPlace = (taskId: number) => {
-    const pdfUrl = route('tasks.printPDF', taskId);
-    if (printFrameRef.current) {
-        printFrameRef.current.src = pdfUrl;
-        printFrameRef.current.onload = () => {
-            printFrameRef.current?.contentWindow?.print();
-        };
-    }
-};
+    const handlePrintInPlace = (taskId: number) => {
+        const pdfUrl = route('tasks.printPDF', taskId);
+        if (printFrameRef.current) {
+            printFrameRef.current.src = pdfUrl;
+            printFrameRef.current.onload = () => {
+                printFrameRef.current?.contentWindow?.print();
+            };
+        }
+    };
 
     const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -225,7 +233,6 @@ const handlePrintInPlace = (taskId: number) => {
                     >
                         {toastType === 'success' ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
                         <span>{toastMessage}</span>
-
                     </div>
                 )}
 
@@ -241,12 +248,13 @@ const handlePrintInPlace = (taskId: number) => {
                                 Create letter
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-[979px] mb-4">
+                        <DialogContent className="mb-4 sm:max-w-[979px]">
                             <DialogHeader>
                                 <DialogTitle className="text-xl">{editingTask ? 'Edit Letter' : 'Create New Letter'}</DialogTitle>
                             </DialogHeader>
                             {/* <EditorX />   */}
-                            <form onSubmit={handleSubmit} className="space-y-4 scroll-smooth ">
+                            <form onSubmit={handleSubmit} className="space-y-4 scroll-smooth">
+                                <div className='grid grid-cols-2 gap-3'>
                                 <div className="space-y-2">
                                     <Label htmlFor="ref_no">Ref. No</Label>
                                     <Input
@@ -267,6 +275,8 @@ const handlePrintInPlace = (taskId: number) => {
                                         className="focus:ring-primary focus:ring-2 dark:text-white"
                                     />
                                 </div>
+                                </div>
+                                <div className='grid grid-cols-2 gap-3'>
                                 <div className="space-y-2">
                                     <Label htmlFor="to">To : </Label>
                                     <Input
@@ -286,19 +296,19 @@ const handlePrintInPlace = (taskId: number) => {
                                         className="focus:ring-primary focus:ring-2"
                                     />
                                 </div>
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="description">Body</Label>
-                                    <Textarea
-                                        id="description"
+                                    <LexicalEditor
                                         value={data.body}
-                                        onChange={(e) => setData('body', e.target.value)}
-                                        required
-                                        className="focus:ring-primary focus:ring-2"
+                                        onChange={(value) => setData('body', value)}
+                                        placeholder="Enter the letter body..."
+                                        className="focus-within:ring-primary focus-within:ring-2"
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="list_id">Type of letter</Label>
-                                    <Select value={data.list_id} onValueChange={(value:any) => setData('list_id', value)}>
+                                    <Select value={data.list_id} onValueChange={(value: any) => setData('list_id', value)}>
                                         <SelectTrigger className="focus:ring-primary focus:ring-2">
                                             <SelectValue placeholder="Select a list" />
                                         </SelectTrigger>
@@ -311,32 +321,65 @@ const handlePrintInPlace = (taskId: number) => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="cc">CC</Label>
-                                    <Input
-                                        id="cc"
-                                        value={data.cc}
-                                        onChange={(e) => setData('cc', e.target.value)}
-                                        className="focus:ring-primary focus:ring-2"
-                                    />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cc">CC</Label>
+                                        <Input
+                                            id="cc"
+                                            value={data.cc}
+                                            onChange={(e) => setData('cc', e.target.value)}
+                                            className="focus:ring-primary focus:ring-2"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cc_position">CC (Optional)</Label>
+                                        <Input
+                                            id="cc_position"
+                                            value={data.cc_position}
+                                            onChange={(e) => setData('cc_position', e.target.value)}
+                                            className="focus:ring-primary focus:ring-2"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="approved_by">Approved by</Label>
-                                    <Input
-                                        id="approved_by"
-                                        value={data.approved_by}
-                                        onChange={(e) => setData('approved_by', e.target.value)}
-                                        className="focus:ring-primary focus:ring-2"
-                                    />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="approved_by">Approved by</Label>
+                                        <Input
+                                            id="approved_by"
+                                            value={data.approved_by}
+                                            onChange={(e) => setData('approved_by', e.target.value)}
+                                            className="focus:ring-primary focus:ring-2"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="approved_position">Approved Position</Label>
+                                        <Input
+                                            id="approved_position"
+                                            value={data.approved_position}
+                                            onChange={(e) => setData('approved_position', e.target.value)}
+                                            className="focus:ring-primary focus:ring-2"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="approved_positions">Approved Positions</Label>
-                                    <Input
-                                        id="approved_positions"
-                                        value={data.approved_position}
-                                        onChange={(e) => setData('approved_position', e.target.value)}
-                                        className="focus:ring-primary focus:ring-2"
-                                    />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="approved_by">Approved by (Optional)</Label>
+                                        <Input
+                                            id="approved_by"
+                                            value={data.approved_by_optional}
+                                            onChange={(e) => setData('approved_by_optional', e.target.value)}
+                                            className="focus:ring-primary focus:ring-2"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="approved_position_optional">Approved Position (Optional)</Label>
+                                        <Input
+                                            id="approved_position_optional"
+                                            value={data.approved_position_optional}
+                                            onChange={(e) => setData('approved_position_optional', e.target.value)}
+                                            className="focus:ring-primary focus:ring-2"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <input
@@ -380,10 +423,10 @@ const handlePrintInPlace = (taskId: number) => {
                     <div className="relative w-full overflow-auto">
                         <table className="w-full caption-bottom text-sm">
                             <thead className="[&_tr]:border-b">
-                                <tr className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors pl-40">
+                                <tr className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b pl-40 transition-colors">
                                     <th className="text-muted-foreground h-12 px-4 text-left align-middle font-medium">Reference number</th>
                                     <th className="text-muted-foreground h-12 px-4 text-left align-middle font-medium"></th>
-                                    <th className="text-muted-foreground h-12 px-4 text-left align-middle font-medium">Body</th>
+                                    <th className="text-muted-foreground h-12 px-4 text-left align-middle font-medium">Subject</th>
                                     <th className="text-muted-foreground h-12 px-4 text-left align-middle font-medium">Type of Letter</th>
                                     <th className="text-muted-foreground h-12 px-4 text-left align-middle font-medium">Date</th>
                                     <th className="text-muted-foreground h-12 px-4 text-right align-middle font-medium">Actions</th>
@@ -391,7 +434,10 @@ const handlePrintInPlace = (taskId: number) => {
                             </thead>
                             <tbody className="[&_tr:last-child]:border-0">
                                 {tasks.data.map((task) => (
-                                    <tr key={task.id} className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors text-black dark:text-white">
+                                    <tr
+                                        key={task.id}
+                                        className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b text-black transition-colors dark:text-white"
+                                    >
                                         <td className="p-4 font-medium">{task.ref_no}</td>
                                         <td className="p-4 align-middle font-medium">{task.subject}</td>
                                         {/* <td className="p-4 align-middle font-medium">{task.subject}</td> */}
@@ -406,7 +452,7 @@ const handlePrintInPlace = (taskId: number) => {
                                             {task.date ? (
                                                 <div className="flex items-center gap-2">
                                                     <Calendar className="text-muted-foreground h-4 w-4" />
-                                                    {new Date(task.date).toLocaleDateString()}
+                                                    {new    Date(task.date).toLocaleDateString()}
                                                 </div>
                                             ) : (
                                                 <span className="text-muted-foreground">No due date</span>
@@ -430,7 +476,7 @@ const handlePrintInPlace = (taskId: number) => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() =>handlePrintInPlace(task.id)}
+                                                    onClick={() => handlePrintInPlace(task.id)}
                                                     className="hover:bg-primary/10 hover:text-primary"
                                                 >
                                                     <Eye className="h-4 w-4" />
@@ -438,7 +484,7 @@ const handlePrintInPlace = (taskId: number) => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() =>handlePrintInPlace(task.id)}
+                                                    onClick={() => handlePrintInPlace(task.id)}
                                                     className="hover:bg-destructive/10 hover:text-black"
                                                 >
                                                     <Download className="h-4 w-4" />
